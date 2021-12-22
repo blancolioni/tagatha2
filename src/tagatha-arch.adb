@@ -1,5 +1,3 @@
-with Ada.Text_IO;
-
 with Tagatha.Arch.Pdp11;
 
 package body Tagatha.Arch is
@@ -30,8 +28,6 @@ package body Tagatha.Arch is
             end if;
          end loop;
          Vector.Append (True);
-         Ada.Text_IO.Put_Line
-           ("allocate: " & Group.Name & Vector.Last_Index'Image);
          return Vector.Last_Index;
       end;
    end Allocate;
@@ -64,8 +60,6 @@ package body Tagatha.Arch is
    begin
       pragma Assert (Vector (Register), "register not allocated");
       Vector (Register) := False;
-      Ada.Text_IO.Put_Line
-        ("deallocate: " & Group.Name & Register'Image);
    end Deallocate;
 
    --------------------
