@@ -1,5 +1,5 @@
 project_name = Tagatha
 source_dir = src
 source_dir = src/pdp-11
-main_unit = tagatha_driver
+main_unit = tagatha-driver
 depend = { project = WLib version = any }
