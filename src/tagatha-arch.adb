@@ -1,6 +1,15 @@
+with Tagatha.Arch.M6502;
 with Tagatha.Arch.Pdp11;
 
 package body Tagatha.Arch is
+
+   type Arch_Builder is access
+     function return Any_Instance;
+
+   package Arch_Maps is
+     new WL.String_Maps (Arch_Builder);
+
+   Arch_Map : Arch_Maps.Map;
 
    --------------
    -- Allocate --
@@ -79,12 +88,46 @@ package body Tagatha.Arch is
 
    function Get (Name : String) return Any_Instance is
    begin
-      if Name = "pdp-11" then
-         return Tagatha.Arch.Pdp11.Get;
+      if Arch_Map.Contains (Name) then
+         return Arch_Map (Name).all;
       else
          raise Constraint_Error with
            "unknown architecture: " & Name;
       end if;
    end Get;
 
+   ---------
+   -- Put --
+   ---------
+
+   procedure Put
+     (This    : in out Any_Instance;
+      Process : in out Operand_Process'Class;
+      Operand : Operands.Operand_Type)
+   is
+   begin
+      Operands.Process (Process, Operand);
+      This.Put (Process.Lines);
+   end Put;
+
+   ---------
+   -- Put --
+   ---------
+
+   procedure Put
+     (This        : in out Operand_Process;
+      Instruction : String;
+      Arg_1       : String := "";
+      Arg_2       : String := "";
+      Arg_3       : String := "")
+   is
+   begin
+      Tagatha.Assembler.Put
+        (This.Lines, Instruction, Arg_1, Arg_2, Arg_3);
+   end Put;
+
+begin
+   Arch_Map.Insert ("pdp-11", Pdp11.Get'Access);
+   Arch_Map.Insert ("pdp11", Pdp11.Get'Access);
+   Arch_Map.Insert ("6502", M6502.Get'Access);
 end Tagatha.Arch;

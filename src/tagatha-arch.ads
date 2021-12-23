@@ -106,6 +106,14 @@ package Tagatha.Arch is
       Group    : Tagatha.Registers.Register_Group'Class;
       Register : Tagatha.Registers.Register);
 
+   type Operand_Process is
+     abstract new Operands.Operand_Process_Interface with private;
+
+   procedure Put
+     (This    : in out Any_Instance;
+      Process : in out Operand_Process'Class;
+      Operand : Operands.Operand_Type);
+
 private
 
    subtype Dispatch is Instance'Class;
@@ -143,5 +151,18 @@ private
           when Tagatha_Floating_Point_Size =>
              Dispatch (This).Floating_Point_Size,
           when Tagatha_Custom_Size  => Size.Octets * 8);
+
+   type Operand_Process is
+     abstract new Operands.Operand_Process_Interface with
+      record
+         Lines : Tagatha.Assembler.Assembler_Line;
+      end record;
+
+   procedure Put
+     (This        : in out Operand_Process;
+      Instruction : String;
+      Arg_1       : String := "";
+      Arg_2       : String := "";
+      Arg_3       : String := "");
 
 end Tagatha.Arch;

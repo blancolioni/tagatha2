@@ -1,4 +1,4 @@
-package Tagatha.Arch.Pdp11 is
+private package Tagatha.Arch.Pdp11 is
 
    function Get return Any_Instance;
 
