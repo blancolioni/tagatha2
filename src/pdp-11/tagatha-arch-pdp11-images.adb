@@ -36,7 +36,11 @@ package body Tagatha.Arch.Pdp11.Images is
       Name       : String;
       Absolute   : Boolean)
       return String
-   is ((if Context.Is_Address or else Absolute then "@#" else "") & Name);
+   is ((if Context.Is_Address or else Absolute then "@#" else "")
+       & Name
+       & (if Context.Word_Index /= 0
+         then " +" & Natural'Image (Context.Word_Index * 2)
+         else ""));
 
    overriding function Integer_Operand
      (Image      : Operand_Image_Type;
