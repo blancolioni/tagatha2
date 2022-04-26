@@ -456,10 +456,11 @@ package body Tagatha.Arch.Pdp11 is
             begin
                while Start * 16 < Dst_Bits loop
                   This.Put (Instruction,
-                            Images.Source_Operand_Image.Image
-                              (Src_Part, Start),
-                            Images.Destination_Operand_Image.Image
-                              (Dst_Part, Start));
+                            Images.Source_Operand_Image (Multiword => True)
+                            .Image (Src_Part, Start),
+                            Images.Destination_Operand_Image
+                              (Multiword => True)
+                            .Image (Dst_Part, Start));
                   Start := Start + 1;
                end loop;
             end;
@@ -523,10 +524,20 @@ package body Tagatha.Arch.Pdp11 is
       else
          if Operator in Condition_Operator then
             if Destination = Tagatha.Operands.No_Operand then
-               This.Put
-                 (Op,
-                  Images.Source_Operand_Image.Image (Source_1),
-                  Images.Destination_Operand_Image.Image (Source_2));
+               if Data = Floating_Point_Data then
+                  This.Put ("ldf", "ac0",
+                            Images.Source_Operand_Image.Image
+                              (Source_1));
+                  This.Put ("ldf", "ac1",
+                            Images.Source_Operand_Image.Image
+                              (Source_2));
+                  This.Put ("cmpf", "ac0", "ac1");
+               else
+                  This.Put
+                    (Op,
+                     Images.Source_Operand_Image.Image (Source_1),
+                     Images.Destination_Operand_Image.Image (Source_2));
+               end if;
             else
                This.Put ("clr", "r0");
 

@@ -27,9 +27,10 @@ package body Tagatha.Arch.M6502.Modes is
    type Jsr_Process is new Operand_Process with null record;
 
    overriding procedure External_Operand
-     (Process : in out Mode_Process;
-      Context : Operands.Operand_Context;
-      Name    : String);
+     (Process    : in out Mode_Process;
+      Context    : Operands.Operand_Context;
+      Name       : String;
+      Absolute   : Boolean);
 
    -------------
    -- Command --
@@ -58,9 +59,10 @@ package body Tagatha.Arch.M6502.Modes is
    ----------------------
 
    overriding procedure External_Operand
-     (Process : in out Mode_Process;
-      Context : Operands.Operand_Context;
-      Name    : String)
+     (Process    : in out Mode_Process;
+      Context    : Operands.Operand_Context;
+      Name       : String;
+      Absolute   : Boolean)
    is
    begin
       Process.Put ("jsr", Name);

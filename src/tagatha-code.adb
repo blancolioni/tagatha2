@@ -10,6 +10,7 @@ package body Tagatha.Code is
       record
          Src_1, Src_2 : Operand_Holders.Holder;
          Operator     : Tagatha_Operator;
+         Annotation   : Operand_Holders.Holder;
       end record;
 
    type Stacked_Element_Type is
@@ -87,9 +88,13 @@ package body Tagatha.Code is
    -- Call --
    ----------
 
-   procedure Call (This : in out Instance; Argument_Count : Natural) is
+   procedure Call
+     (This           : in out Instance;
+      Result         : Tagatha.Operands.Operand_Type;
+      Argument_Count : Natural)
+   is
    begin
-      This.Append (Call (Argument_Count));
+      This.Append (Call (Result, Argument_Count));
    end Call;
 
    ----------
@@ -232,8 +237,11 @@ package body Tagatha.Code is
                return From.Operand.Element;
             when Transfer_Element =>
                declare
+                  use type Tagatha.Operands.Operand_Type;
                   Src : constant Operands.Operand_Type :=
                           From.Transfer.Src_1.Element;
+                  Anno : constant Operands.Operand_Type :=
+                           From.Transfer.Annotation.Element;
                   Group : constant Tagatha.Registers.Register_Group'Class :=
                             Arch.Get_Group
                               (Data => Operands.Data_Type (Src),
@@ -242,7 +250,8 @@ package body Tagatha.Code is
                             Arch.Allocate (Group);
                   Dst : constant Operands.Operand_Type :=
                             Operands.Register_Assignment_Operand
-                              (Operand  => Src,
+                              (Operand  => (if Anno = Operands.No_Operand
+                                            then Src else Anno),
                                Group    => Group,
                                Register => R);
                begin
@@ -253,7 +262,8 @@ package body Tagatha.Code is
                      Destination => Dst);
 
                   return Operands.Register_Operand
-                    (Operand  => Src,
+                    (Operand  => (if Anno = Operands.No_Operand
+                                  then Src else Anno),
                      Group    => Group,
                      Register => R);
                end;
@@ -274,7 +284,7 @@ package body Tagatha.Code is
             when Operand_Element =>
                Arch.Move
                  (Element.Operand.Element,
-                  Tagatha.Operands.Stack_Operand);
+                  Tagatha.Operands.To_Stack_Operand (Element.Operand.Element));
             when Transfer_Element =>
                Arch.Operate
                  (Operator    => Element.Transfer.Operator,
@@ -292,7 +302,6 @@ package body Tagatha.Code is
             Global => Routine.Global);
 
          for Item of Routine.Vector loop
-            --  Ada.Text_IO.Put_Line (Image (Item));
             for Label of Item.Labels loop
                Arch.Local_Label (Label);
             end loop;
@@ -346,7 +355,8 @@ package body Tagatha.Code is
                               Src_2    =>
                                 Operand_Holders.To_Holder
                                   (Get_Operand (Right)),
-                              Operator => Item.Op)));
+                              Operator => Item.Op,
+                              Annotation => Item.Op_Result)));
                   end;
 
                when Branch =>
@@ -373,6 +383,7 @@ package body Tagatha.Code is
                      Arch.Call (Destination, Item.Argument_Count);
                      Arch.Change_Stack (-Item.Argument_Count);
                      Deallocate (Destination);
+                     Operand_Stack.Push ((Operand_Element, Item.Result));
                   end;
                when Reserve =>
                   Arch.Change_Stack (Item.Word_Count);
@@ -398,6 +409,7 @@ package body Tagatha.Code is
    -----------
 
    function Image (Instruction : Instruction_Record) return String is
+      use type Tagatha.Operands.Operand_Type;
       Img : constant String :=
               (case Instruction.T is
                   when Push =>
@@ -406,7 +418,11 @@ package body Tagatha.Code is
                   when Store =>
                     "store",
                   when Operator   =>
-                    Instruction.Op'Image,
+                    Instruction.Op'Image
+               & (if Instruction.Op_Result.Element = Operands.No_Operand
+                 then ""
+                 else Tagatha.Operands.Image
+                   (Instruction.Op_Result.Element)),
                   when Branch     =>
                     "br " & Instruction.Condition'Image & " "
                & Tagatha.Labels.Image (Instruction.Destination),
@@ -458,9 +474,13 @@ package body Tagatha.Code is
    -- Operate --
    -------------
 
-   procedure Operate (This : in out Instance; Operator : Tagatha_Operator) is
+   procedure Operate
+     (This     : in out Instance;
+      Operator : Tagatha_Operator;
+      Result   : Operands.Operand_Type := Operands.No_Operand)
+   is
    begin
-      This.Append (Operate (Operator));
+      This.Append (Operate (Operator, Result));
    end Operate;
 
    ----------

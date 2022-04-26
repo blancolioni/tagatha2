@@ -72,7 +72,16 @@ package Tagatha.Operands is
    function No_Operand
      return Operand_Type;
 
+   function Type_Annotation
+     (Data : Tagatha_Data_Type;
+      Size : Tagatha_Size)
+     return Operand_Type;
+
    function Stack_Operand
+     return Operand_Type;
+
+   function To_Stack_Operand
+     (Src : Operand_Type)
      return Operand_Type;
 
    function Frame_Operand
@@ -88,7 +97,8 @@ package Tagatha.Operands is
       return Operand_Type;
 
    function External_Operand
-     (Name : String)
+     (Name     : String;
+      Absolute : Boolean := False)
       return Operand_Type;
 
    function Constant_Operand
@@ -127,9 +137,10 @@ package Tagatha.Operands is
    is null;
 
    procedure External_Operand
-     (Process : in out Operand_Process_Interface;
-      Context : Operand_Context;
-      Name    : String)
+     (Process    : in out Operand_Process_Interface;
+      Context    : Operand_Context;
+      Name       : String;
+      Absolute   : Boolean)
    is null;
 
    procedure Integer_Operand
@@ -179,7 +190,8 @@ package Tagatha.Operands is
    function External_Operand
      (Image      : Operand_Image_Interface;
       Context    : Operand_Context;
-      Name       : String)
+      Name       : String;
+      Absolute   : Boolean)
       return String
       is abstract;
 
@@ -261,7 +273,8 @@ private
             when Frame_Operand =>
                Offset : Frame_Offset;
             when External_Operand =>
-               Name   : Ada.Strings.Unbounded.Unbounded_String;
+               Name     : Ada.Strings.Unbounded.Unbounded_String;
+               Absolute : Boolean;
             when Constant_Operand =>
                Value  : Constant_Type;
             when Register_Operand =>
@@ -274,6 +287,12 @@ private
    function No_Operand
      return Operand_Type
    is (Class => No_Operand, others => <>);
+
+   function Type_Annotation
+     (Data : Tagatha_Data_Type;
+      Size : Tagatha_Size)
+      return Operand_Type
+   is (Set_Size (Size, Set_Data_Type (Data, No_Operand)));
 
    function Stack_Operand
      return Operand_Type
@@ -363,12 +382,24 @@ private
    is (Frame_Operand (Frame_Offset (Offset)));
 
    function External_Operand
-     (Name : String)
+     (Name     : String;
+      Absolute : Boolean := False)
       return Operand_Type
    is (Operand_Type'
          (Class      => External_Operand,
           Name       => Ada.Strings.Unbounded.To_Unbounded_String (Name),
+          Absolute   => Absolute,
           others     => <>));
+
+   function To_Stack_Operand
+     (Src : Operand_Type)
+      return Operand_Type
+   is (Operand_Type'
+         (Class        => Stack_Operand,
+          Data         => Src.Data,
+          Size         => Src.Size,
+          Is_Address   => False,
+          Is_Reference => False));
 
    function Register_Assignment_Operand
      (Operand  : Operand_Type;
@@ -395,9 +426,7 @@ private
    is (Operand_Type'
          (Class        => Register_Operand,
           Data         => Operand.Data,
-          Size         => (if Operand.Is_Address
-                           then Default_Address_Size
-                           else Operand.Size),
+          Size         => Operand.Size,
           Is_Address   => Operand.Is_Address,
           Is_Reference => False,
           Group        => Register_Group_Holders.To_Holder (Group),

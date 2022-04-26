@@ -30,7 +30,8 @@ package body Tagatha.Operands is
             return This.Frame_Operand (Context, Operand.Offset);
          when External_Operand =>
             return This.External_Operand
-              (Context, Ada.Strings.Unbounded.To_String (Operand.Name));
+              (Context, Ada.Strings.Unbounded.To_String (Operand.Name),
+               Operand.Absolute);
          when Constant_Operand =>
             case Operand.Value.Class is
                when Integer_Constant =>
@@ -73,7 +74,8 @@ package body Tagatha.Operands is
          when External_Operand =>
             This.External_Operand
               (Context,
-               Ada.Strings.Unbounded.To_String (Operand.Name));
+               Ada.Strings.Unbounded.To_String (Operand.Name),
+               Operand.Absolute);
          when Constant_Operand =>
             case Operand.Value.Class is
                when Integer_Constant =>

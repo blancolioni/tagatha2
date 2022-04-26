@@ -1,13 +1,12 @@
 with Ada.Unchecked_Conversion;
 with Ada.Strings.Fixed;
 
-package body Tagatha.Arch.Pdp11.Images is
+package body Tagatha.Arch.M6502.Images is
 
    type Operand_Image_Type is
      new Tagatha.Operands.Operand_Image_Interface with
       record
-         Source    : Boolean;
-         Multiword : Boolean;
+         Source : Boolean;
       end record;
 
    overriding function No_Operand
@@ -33,10 +32,9 @@ package body Tagatha.Arch.Pdp11.Images is
    overriding function External_Operand
      (Image      : Operand_Image_Type;
       Context    : Tagatha.Operands.Operand_Context;
-      Name       : String;
-      Absolute   : Boolean)
+      Name       : String)
       return String
-   is ((if Context.Is_Address or else Absolute then "@#" else "") & Name);
+   is ((if Context.Is_Address then "@#" else "") & Name);
 
    overriding function Integer_Operand
      (Image      : Operand_Image_Type;
@@ -63,12 +61,11 @@ package body Tagatha.Arch.Pdp11.Images is
    -------------------------------
 
    function Destination_Operand_Image
-     (Multiword : Boolean := False)
-      return Tagatha.Operands.Operand_Image_Interface'Class
+     return Tagatha.Operands.Operand_Image_Interface'Class
    is
    begin
       return Image : constant Operand_Image_Type :=
-        Operand_Image_Type'(Source => False, Multiword => Multiword);
+        Operand_Image_Type'(Source => False);
    end Destination_Operand_Image;
 
    ----------------------------
@@ -138,8 +135,6 @@ package body Tagatha.Arch.Pdp11.Images is
         or else not Context.Is_Address
       then
          return R;
-      elsif Image.Multiword then
-         return "(" & R & ")+";
       else
          return "(" & R & ")";
       end if;
@@ -150,12 +145,11 @@ package body Tagatha.Arch.Pdp11.Images is
    --------------------------
 
    function Source_Operand_Image
-     (Multiword : Boolean := False)
       return Tagatha.Operands.Operand_Image_Interface'Class
    is
    begin
       return Image : constant Operand_Image_Type :=
-        Operand_Image_Type'(Source => True, Multiword => Multiword);
+        Operand_Image_Type'(Source => True);
    end Source_Operand_Image;
 
-end Tagatha.Arch.Pdp11.Images;
+end Tagatha.Arch.M6502.Images;

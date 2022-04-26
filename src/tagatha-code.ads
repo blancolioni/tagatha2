@@ -32,13 +32,15 @@ package Tagatha.Code is
 
    procedure Operate
      (This     : in out Instance;
-      Operator : Tagatha_Operator);
+      Operator : Tagatha_Operator;
+      Result   : Operands.Operand_Type := Operands.No_Operand);
 
    procedure Store
      (This    : in out Instance);
 
    procedure Call
      (This           : in out Instance;
+      Result         : Tagatha.Operands.Operand_Type;
       Argument_Count : Natural);
 
    procedure Branch
@@ -93,10 +95,12 @@ private
                null;
             when Operator =>
                Op                : Tagatha_Operator;
+               Op_Result         : Operand_Holders.Holder;
             when Branch =>
                Condition         : Tagatha_Condition;
                Destination       : Tagatha.Labels.Label;
             when Call =>
+               Result            : Operand_Holders.Holder;
                Argument_Count    : Natural;
             when Reserve =>
                Word_Count        : Integer;
@@ -117,16 +121,23 @@ private
    function Store return Instruction_Record
    is (Store, Local_Label_Lists.Empty_List);
 
-   function Operate (Op : Tagatha_Operator) return Instruction_Record
-   is (Operator, Local_Label_Lists.Empty_List, Op);
+   function Operate
+     (Op : Tagatha_Operator;
+      Result : Tagatha.Operands.Operand_Type)
+      return Instruction_Record
+   is (Operator, Local_Label_Lists.Empty_List, Op,
+       Operand_Holders.To_Holder (Result));
 
    function Branch (Condition : Tagatha_Condition;
                     Destination : Tagatha.Labels.Label)
                     return Instruction_Record
    is (Branch, Local_Label_Lists.Empty_List, Condition, Destination);
 
-   function Call (Argument_Count : Natural) return Instruction_Record
-   is (Call, Local_Label_Lists.Empty_List, Argument_Count);
+   function Call (Result : Operands.Operand_Type;
+                  Argument_Count : Natural)
+                  return Instruction_Record
+   is (Call, Local_Label_Lists.Empty_List,
+       Operand_Holders.To_Holder (Result), Argument_Count);
 
    function Reserve (Word_Count : Integer) return Instruction_Record
    is (Reserve, Local_Label_Lists.Empty_List, Word_Count);

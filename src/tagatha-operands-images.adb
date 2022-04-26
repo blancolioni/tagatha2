@@ -4,7 +4,10 @@ package body Tagatha.Operands.Images is
 
    function Context_Image (Context : Operand_Context) return String
    is ((if Context.Is_Address then "&" else "")
-       & Data_Image (Context.Data));
+       & Data_Image (Context.Data)
+       & (if Context.Size /= Default_Size
+         then "/" & Size_Image (Context.Size)
+         else ""));
 
    type Standard_Image_Type is
      new Tagatha.Operands.Operand_Image_Interface with null record;
@@ -33,9 +36,10 @@ package body Tagatha.Operands.Images is
    overriding function External_Operand
      (Image      : Standard_Image_Type;
       Context    : Operand_Context;
-      Name       : String)
+      Name       : String;
+      Absolute   : Boolean)
       return String
-   is (Name & Context_Image (Context));
+   is ((if Absolute then "@#" else "") & Name & Context_Image (Context));
 
    overriding function Integer_Operand
      (Image      : Standard_Image_Type;
@@ -59,7 +63,10 @@ package body Tagatha.Operands.Images is
       Group      : Tagatha.Registers.Register_Group'Class;
       Register   : Tagatha.Registers.Register)
       return String
-   is (Group.Name & Integer'Image (-Integer (Register)));
+   is (Group.Name
+       & "-"
+       & Ada.Strings.Fixed.Trim (Register'Image, Ada.Strings.Left)
+       & Context_Image (Context));
 
    --------------------
    -- Standard_Image --

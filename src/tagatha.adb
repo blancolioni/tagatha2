@@ -55,6 +55,36 @@ package body Tagatha is
       return Size_Octets (Size) * 8;
    end Size_Bits;
 
+   ----------------
+   -- Size_Image --
+   ----------------
+
+   function Size_Image (Size : Tagatha_Size) return String is
+
+      function Custom_Size_Image return String;
+
+      -----------------------
+      -- Custom_Size_Image --
+      -----------------------
+
+      function Custom_Size_Image return String is
+         Cust : constant String := Size.Octets'Image;
+      begin
+         return Cust (Cust'First + 1 .. Cust'Last);
+      end Custom_Size_Image;
+
+      Img : constant String :=
+              (case Size.Category is
+                  when Tagatha_Default_Size        => "",
+                  when Tagatha_Integer_Size        => "i",
+                  when Tagatha_Address_Size        => "a",
+                  when Tagatha_Floating_Point_Size => "f",
+                  when Tagatha_Custom_Size         =>
+                    Custom_Size_Image);
+   begin
+      return Img;
+   end Size_Image;
+
    -----------------
    -- Size_Octets --
    -----------------
