@@ -1,7 +1,7 @@
 with Ada.Unchecked_Conversion;
 with Ada.Strings.Fixed;
 
-package body Tagatha.Arch.Pdp11.Images is
+package body Tagatha.Arch.Pdp11_Generator.Images is
 
    type Operand_Image_Type is
      new Tagatha.Operands.Operand_Image_Interface with
@@ -162,4 +162,4 @@ package body Tagatha.Arch.Pdp11.Images is
         Operand_Image_Type'(Source => True, Multiword => Multiword);
    end Source_Operand_Image;
 
-end Tagatha.Arch.Pdp11.Images;
+end Tagatha.Arch.Pdp11_Generator.Images;

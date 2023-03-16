@@ -68,8 +68,7 @@ package Tagatha.Arch is
    is abstract;
 
    procedure Begin_Generation
-     (This             : in out Instance;
-      Source_File_Name : String);
+     (This             : in out Instance);
 
    procedure End_Generation
      (This             : in out Instance);

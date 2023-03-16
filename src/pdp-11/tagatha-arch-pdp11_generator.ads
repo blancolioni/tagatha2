@@ -1,4 +1,4 @@
-private package Tagatha.Arch.Pdp11 is
+private package Tagatha.Arch.Pdp11_Generator is
 
    function Get return Any_Instance;
 
@@ -26,4 +26,4 @@ private
       return Tagatha.Registers.Register
    is (Tagatha.Registers."-" (Group.Last, Group.First));
 
-end Tagatha.Arch.Pdp11;
+end Tagatha.Arch.Pdp11_Generator;

@@ -296,6 +296,8 @@ package body Tagatha.Code is
 
    begin
 
+      Arch.Begin_Generation;
+
       for Routine of This.Routines loop
          Arch.Start_Routine
            (Name   => Ada.Strings.Unbounded.To_String (Routine.Name),
@@ -402,6 +404,9 @@ package body Tagatha.Code is
          Arch.End_Routine
            (Ada.Strings.Unbounded.To_String (Routine.Name));
       end loop;
+
+      Arch.End_Generation;
+
    end Generate;
 
    -----------

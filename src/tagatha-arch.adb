@@ -1,5 +1,5 @@
 with Tagatha.Arch.M6502;
-with Tagatha.Arch.Pdp11;
+with Tagatha.Arch.Pdp11_Generator;
 
 package body Tagatha.Arch is
 
@@ -46,12 +46,10 @@ package body Tagatha.Arch is
    ----------------------
 
    procedure Begin_Generation
-     (This             : in out Instance;
-      Source_File_Name : String)
+     (This             : in out Instance)
    is
    begin
-      This.Source_File_Name :=
-        Ada.Strings.Unbounded.To_Unbounded_String (Source_File_Name);
+      null;
    end Begin_Generation;
 
    ----------------
@@ -127,7 +125,7 @@ package body Tagatha.Arch is
    end Put;
 
 begin
-   Arch_Map.Insert ("pdp-11", Pdp11.Get'Access);
-   Arch_Map.Insert ("pdp11", Pdp11.Get'Access);
+   Arch_Map.Insert ("pdp-11", Pdp11_Generator.Get'Access);
+   Arch_Map.Insert ("pdp11", Pdp11_Generator.Get'Access);
    Arch_Map.Insert ("6502", M6502.Get'Access);
 end Tagatha.Arch;
