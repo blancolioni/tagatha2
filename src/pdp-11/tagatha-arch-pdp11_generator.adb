@@ -1,57 +1,21 @@
 with Ada.Characters.Handling;
-with Ada.Containers.Doubly_Linked_Lists;
-with Ada.Containers.Indefinite_Holders;
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Strings.Fixed;
 with Ada.Unchecked_Conversion;
 --  with Ada.Text_IO;
 
-with Pdp11.ISA;
+with Tagatha.Arch.Pdp11_Generator.Inspect;
 
 package body Tagatha.Arch.Pdp11_Generator is
 
    package Label_Vectors is
      new Ada.Containers.Indefinite_Vectors (Positive, String);
 
-   package Label_Lists is
-     new Ada.Containers.Doubly_Linked_Lists (Positive);
-
    package Label_Maps is
      new WL.String_Maps (Positive);
 
    Label_Vector : Label_Vectors.Vector;
    Label_Map    : Label_Maps.Map;
-
-   package Operand_Holders is
-     new Ada.Containers.Indefinite_Holders
-       (Tagatha.Operands.Operand_Type,
-        Tagatha.Operands."=");
-
-   type Command_Operand is
-      record
-         Operand : Pdp11.ISA.Operand_Type;
-         Label   : Natural := 0;
-         Offset  : Frame_Offset := 0;
-         Value   : Tagatha_Integer := 0;
-      end record;
-
-   type Command is
-      record
-         Has_Instruction : Boolean := True;
-         Label_List      : Label_Lists.List;
-         Byte            : Boolean := False;
-         Instruction     : Pdp11.ISA.Instruction_Type :=
-                             Pdp11.ISA.I_CCC;
-         Src, Dst        : Command_Operand;
-         Branch_Label    : Natural := 0;
-         Src_Operand     : Pdp11.ISA.Operand_Type := (others => <>);
-         Dst_Operand     : Pdp11.ISA.Operand_Type := (others => <>);
-      end record;
-
-   function To_Assembly (This : Command) return String;
-
-   package Command_Lists is
-     new Ada.Containers.Doubly_Linked_Lists (Command);
 
    type Command_Operand_Process is
      new Tagatha.Operands.Operand_Process_Interface with
@@ -180,6 +144,10 @@ package body Tagatha.Arch.Pdp11_Generator is
       return Tagatha.Registers.Register_Group'Class;
 
    procedure Append
+     (This : in out Instance'Class;
+      Cmd  : Command);
+
+   procedure Append
      (This        : in out Instance'Class;
       Instruction : Pdp11.ISA.Instruction_Type;
       Src         : Command_Operand := (others => <>);
@@ -279,6 +247,26 @@ package body Tagatha.Arch.Pdp11_Generator is
           Value   => Value,
           others  => <>));
 
+   procedure Peephole
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean);
+
+   procedure Register_State
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean);
+
+   ------------
+   -- Append --
+   ------------
+
+   procedure Append
+     (This : in out Instance'Class;
+      Cmd  : Command)
+   is
+   begin
+      This.Commands.Append (Cmd);
+   end Append;
+
    ------------
    -- Append --
    ------------
@@ -302,7 +290,7 @@ package body Tagatha.Arch.Pdp11_Generator is
                          Src_Operand     => Src.Operand,
                          Dst_Operand     => Dst.Operand);
    begin
-      This.Commands.Append (New_Item);
+      This.Append (New_Item);
    end Append;
 
    ------------
@@ -339,7 +327,7 @@ package body Tagatha.Arch.Pdp11_Generator is
       Label       : Positive)
    is
    begin
-      This.Commands.Append
+      This.Append
         (Command'
            (Has_Instruction => True,
             Branch_Label    => Label,
@@ -357,7 +345,7 @@ package body Tagatha.Arch.Pdp11_Generator is
       Destination : Tagatha.Labels.Label)
    is
    begin
-      This.Commands.Append
+      This.Append
         (Command'
            (Has_Instruction => True,
             Instruction     => Instruction,
@@ -432,11 +420,26 @@ package body Tagatha.Arch.Pdp11_Generator is
    overriding procedure End_Generation
      (This   : in out Instance)
    is
+      Changed : Boolean := True;
    begin
+      if True then
+         while Changed loop
+            Peephole (This.Commands, Changed);
+            if not Changed then
+               Register_State (This.Commands, Changed);
+            end if;
+         end loop;
+      end if;
+
       for Command of This.Commands loop
 --         This.Put (Command'Image);
          This.Put (Command);
       end loop;
+
+      for I in 1 .. Label_Vector.Last_Index loop
+         This.Put_Label (";" & I'Img & " " & Label_Vector.Element (I));
+      end loop;
+
    end End_Generation;
 
    -----------------
@@ -568,19 +571,21 @@ package body Tagatha.Arch.Pdp11_Generator is
                   Instruction     => Pdp11.ISA.I_MOV,
                   Src_Operand     => FP.Operand,
                   Dst_Operand     => Dst.Operand));
-            This.Commands.Append
-              (Command'
-                 (Has_Instruction => True,
-                  Label_List      => <>,
-                  Src             => Imm,
-                  Byte            => False,
-                  Dst             => Dst,
-                  Branch_Label    => 0,
-                  Instruction     => (if Offset > 0
-                                      then Pdp11.ISA.I_ADD
-                                      else Pdp11.ISA.I_SUB),
-                  Src_Operand     => Imm.Operand,
-                  Dst_Operand     => Dst.Operand));
+            if Adjusted_Offset /= 0 then
+               This.Commands.Append
+                 (Command'
+                    (Has_Instruction => True,
+                     Label_List      => <>,
+                     Src             => Imm,
+                     Byte            => False,
+                     Dst             => Dst,
+                     Branch_Label    => 0,
+                     Instruction     => (if Offset > 0
+                                         then Pdp11.ISA.I_ADD
+                                         else Pdp11.ISA.I_SUB),
+                     Src_Operand     => Imm.Operand,
+                     Dst_Operand     => Dst.Operand));
+            end if;
          end;
       end if;
    end Frame_Operand;
@@ -752,7 +757,7 @@ package body Tagatha.Arch.Pdp11_Generator is
       List : Label_Lists.List;
    begin
       List.Append (Label_Reference (Name));
-      This.Commands.Append
+      This.Append
         (Command'
            (Label_List => List,
             Has_Instruction => False,
@@ -771,7 +776,7 @@ package body Tagatha.Arch.Pdp11_Generator is
       Image : constant String := Index'Image;
    begin
       List.Append (Label_Reference (Image (2 .. Image'Last)));
-      This.Commands.Append
+      This.Append
         (Command'
            (Label_List => List,
             Has_Instruction => False,
@@ -862,7 +867,7 @@ package body Tagatha.Arch.Pdp11_Generator is
       Before_Move.Process (Source);
 
       for Command of Before_Move.Commands loop
-         This.Commands.Append (Command);
+         This.Append (Command);
       end loop;
 
       if Before_Move.Commands.Is_Empty then
@@ -983,9 +988,9 @@ package body Tagatha.Arch.Pdp11_Generator is
                   procedure Compare (Src_1, Src_2 : Command_Operand) is
                   begin
                      This.Append (Pdp11.ISA.I_CMP, Src_1, Src_2);
-                     This.Branch (Br, 1);
+                     This.Branch (Br, Label_Reference ("1"));
                      if Br /= I_BNE then
-                        This.Branch (I_BNE, 2);
+                        This.Branch (I_BNE, Label_Reference ("2"));
                      end if;
                   end Compare;
 
@@ -1025,6 +1030,73 @@ package body Tagatha.Arch.Pdp11_Generator is
          end if;
       end if;
    end Operate;
+
+   --------------
+   -- Peephole --
+   --------------
+
+   procedure Peephole
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean)
+   is
+      Previous : Command := (others => <>);
+      Position : Command_Lists.Cursor := Commands.First;
+      State    : Inspect.Machine_State;
+   begin
+      Changed := False;
+      while Command_Lists.Has_Element (Position) loop
+         declare
+            use Pdp11.ISA;
+            Cmd : constant Command := Command_Lists.Element (Position);
+            New_Command : Command;
+            Can_Update  : constant Boolean :=
+                            Cmd.Label_List.Is_Empty
+                                and then Previous.Instruction not in
+                                  Branch_Instruction | I_JSR | I_JMP | I_RTS;
+            Updated     : Boolean := False;
+         begin
+            if Can_Update then
+               Inspect.Check_Sequence (Previous, Cmd, New_Command, Updated);
+            end if;
+
+            --  if not Updated then
+            --     Inspect.Save (State, Commands, Position, Updated);
+            --  end if;
+
+            if Updated then
+               Changed := True;
+               declare
+                  Deleted : Command_Lists.Cursor := Position;
+               begin
+                  Command_Lists.Previous (Position);
+                  Commands.Delete (Deleted);
+                  Commands (Position) := New_Command;
+               end;
+               Previous := New_Command;
+            else
+               Previous := Cmd;
+            end if;
+         end;
+         Command_Lists.Next (Position);
+      end loop;
+
+      if Changed then
+         return;
+      end if;
+
+      Position := Commands.First;
+
+      while Command_Lists.Has_Element (Position) loop
+         declare
+            Updated     : Boolean := False;
+         begin
+            Inspect.Save (State, Commands, Position, Updated);
+            Changed := Changed or else Updated;
+         end;
+         Command_Lists.Next (Position);
+      end loop;
+
+   end Peephole;
 
    ---------
    -- Put --
@@ -1102,6 +1174,68 @@ package body Tagatha.Arch.Pdp11_Generator is
         (Operand => Operand, others => <>);
 
    end Register_Operand;
+
+   --------------------
+   -- Register_State --
+   --------------------
+
+   procedure Register_State
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean)
+   is
+      use Pdp11.ISA;
+      type Current_State is
+         record
+            Known : Boolean := False;
+            Src   : Register_Index := 0;
+         end record;
+
+      State : array (Register_Index) of Current_State;
+      New_List : Command_Lists.List;
+   begin
+      Changed := False;
+      for Cmd of Commands loop
+         if not Cmd.Label_List.Is_Empty then
+            State := (others => <>);
+         end if;
+
+         declare
+            Keep : Boolean := True;
+         begin
+            if Cmd.Has_Instruction
+              and then Cmd.Dst_Operand.Mode = Register_Mode
+              and then Cmd.Dst_Operand.Deferred = False
+            then
+               if Cmd.Instruction = I_MOV
+                 and then Cmd.Src_Operand.Mode = Register_Mode
+                 and then Cmd.Src_Operand.Deferred = False
+               then
+                  if State (Cmd.Dst_Operand.Register).Known
+                    and then State (Cmd.Dst_Operand.Register).Src
+                    = Cmd.Src_Operand.Register
+                  then
+                     Changed := True;
+                     Keep := False;
+                  else
+                     State (Cmd.Dst_Operand.Register) :=
+                       (True, Cmd.Src_Operand.Register);
+                  end if;
+               else
+                  State (Cmd.Dst_Operand.Register).Known := False;
+               end if;
+            end if;
+
+            if Keep then
+               New_List.Append (Cmd);
+            end if;
+         end;
+      end loop;
+
+      if Changed then
+         Commands := New_List;
+      end if;
+
+   end Register_State;
 
    --------------------
    -- Source_Operand --
