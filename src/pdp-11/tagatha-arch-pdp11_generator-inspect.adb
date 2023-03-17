@@ -25,6 +25,14 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
      (Previous, Current : Command)
       return Command;
 
+   function Check_Pop_Push
+     (Previous, Current : Command)
+      return Boolean;
+
+   function Join_Pop_Push
+     (Previous, Current : Command)
+      return Command;
+
    function Check_Subtract_Add
      (Previous, Current : Command)
       return Boolean;
@@ -49,6 +57,23 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
         and then Current.Src.Operand = Immediate_Operand
         and then Current.Src.Value = 0;
    end Check_Add_Zero;
+
+   --------------------
+   -- Check_Pop_Push --
+   --------------------
+
+   function Check_Pop_Push
+     (Previous, Current : Command)
+      return Boolean
+   is
+      use Pdp11.ISA;
+   begin
+      return Previous.Has_Instruction and then Current.Has_Instruction
+        and then Previous.Instruction = I_TST
+        and then Previous.Src.Operand = (Autoincrement_Mode, False, 6)
+        and then Current.Instruction in Double_Operand_Instruction
+        and then Current.Dst.Operand = (Autodecrement_Mode, False, 6);
+   end Check_Pop_Push;
 
    --------------------
    -- Check_Sequence --
@@ -103,6 +128,24 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
       return Previous;
    end Join_Add_Zero;
 
+   -------------------
+   -- Join_Pop_Push --
+   -------------------
+
+   function Join_Pop_Push
+     (Previous, Current : Command)
+      return Command
+   is
+      pragma Unreferenced (Previous);
+      use Pdp11.ISA;
+      Replace_Stack_Top : constant Operand_Type :=
+                            (Register_Mode, True, 6);
+   begin
+      return Cmd : Command := Current do
+         Cmd.Dst.Operand := Replace_Stack_Top;
+      end return;
+   end Join_Pop_Push;
+
    -----------------------
    -- Join_Subtract_Add --
    -----------------------
@@ -140,8 +183,8 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
       use Pdp11.ISA;
       Cmd : constant Command := Command_Lists.Element (Current);
       Rs   : Register_State_Array renames State.Registers;
-      Src  : constant Operand_Type := Cmd.Src_Operand;
-      Dst  : constant Operand_Type := Cmd.Dst_Operand;
+      Src  : constant Operand_Type := Cmd.Src.Operand;
+      Dst  : constant Operand_Type := Cmd.Dst.Operand;
 
       procedure Log (Register : Register_Index;
                      State    : Register_State);
@@ -177,19 +220,19 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
       end if;
 
       if Cmd.Has_Instruction
-        and then Cmd.Dst_Operand.Mode = Register_Mode
-        and then Cmd.Dst_Operand.Deferred = False
+        and then Cmd.Dst.Operand.Mode = Register_Mode
+        and then Cmd.Dst.Operand.Deferred = False
       then
 
          for St of State.Registers loop
-            if St.Src = Cmd.Dst_Operand.Register then
+            if St.Src = Cmd.Dst.Operand.Register then
                St := (others => <>);
             end if;
          end loop;
 
          if Cmd.Instruction = I_MOV
-           and then Cmd.Src_Operand.Mode = Register_Mode
-           and then Cmd.Src_Operand.Deferred = False
+           and then Cmd.Src.Operand.Mode = Register_Mode
+           and then Cmd.Src.Operand.Deferred = False
          then
             declare
                Src_State : constant Register_State :=
@@ -208,7 +251,7 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
             end;
          elsif (Cmd.Instruction = I_ADD
                 or else Cmd.Instruction = I_SUB)
-           and then Cmd.Src_Operand = Immediate_Operand
+           and then Cmd.Src.Operand = Immediate_Operand
            and then Rs (Dst.Register).Known
          then
             if not Command_Lists.Has_Element
@@ -264,13 +307,7 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
                        others  => <>),
                   Byte            => Cmd.Byte,
                   Branch_Label    => 0,
-                  Instruction     => Cmd.Instruction,
-                  Src_Operand     => Src,
-                  Dst_Operand     =>
-                    Operand_Type'
-                      (Mode => Index_Mode,
-                       Deferred => False,
-                       Register => St.Src)));
+                  Instruction     => Cmd.Instruction));
             Changed := True;
          end;
       elsif Src.Mode = Register_Mode
@@ -307,13 +344,7 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
                   Dst             => Cmd.Dst,
                   Byte            => Cmd.Byte,
                   Branch_Label    => 0,
-                  Instruction     => Cmd.Instruction,
-                  Src_Operand     =>
-                    Operand_Type'
-                      (Mode     => Index_Mode,
-                       Deferred => False,
-                       Register => St.Src),
-                  Dst_Operand     => Dst));
+                  Instruction     => Cmd.Instruction));
             Changed := True;
          end;
       end if;
@@ -322,6 +353,8 @@ package body Tagatha.Arch.Pdp11_Generator.Inspect is
 begin
    Check_List.Append
      (Check_Record'(Check_Add_Zero'Access, Join_Add_Zero'Access));
+   Check_List.Append
+     (Check_Record'(Check_Pop_Push'Access, Join_Pop_Push'Access));
    Check_List.Append
      (Check_Record'(Check_Subtract_Add'Access, Join_Subtract_Add'Access));
 end Tagatha.Arch.Pdp11_Generator.Inspect;

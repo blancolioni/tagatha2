@@ -17,6 +17,10 @@ package body Tagatha.Arch.Pdp11_Generator is
    Label_Vector : Label_Vectors.Vector;
    Label_Map    : Label_Maps.Map;
 
+   Next_Temporary_Index : Natural := 0;
+
+   function Next_Temporary_Label return String;
+
    type Command_Operand_Process is
      new Tagatha.Operands.Operand_Process_Interface with
       record
@@ -154,10 +158,10 @@ package body Tagatha.Arch.Pdp11_Generator is
       Dst         : Command_Operand := (others => <>);
       Byte        : Boolean         := False);
 
-   procedure Branch
+   procedure Branch_To_Label
      (This        : in out Instance'Class;
       Instruction : Pdp11.ISA.Branch_Instruction;
-      Label       : Positive);
+      Label       : String);
 
    procedure Branch
      (This        : in out Instance'Class;
@@ -166,7 +170,8 @@ package body Tagatha.Arch.Pdp11_Generator is
 
    procedure Label
      (This  : in out Instance'Class;
-      Index : Positive);
+      Index : Positive)
+     with Unreferenced;
 
    procedure Put
      (This : in out Instance'Class;
@@ -286,54 +291,10 @@ package body Tagatha.Arch.Pdp11_Generator is
                          Byte            => Byte,
                          Dst             => Dst,
                          Branch_Label    => 0,
-                         Instruction     => Instruction,
-                         Src_Operand     => Src.Operand,
-                         Dst_Operand     => Dst.Operand);
+                         Instruction     => Instruction);
    begin
       This.Append (New_Item);
    end Append;
-
-   ------------
-   -- Branch --
-   ------------
-
-   overriding procedure Branch
-     (This        : in out Instance;
-      Condition   : Tagatha_Condition;
-      Destination : Tagatha.Labels.Label)
-   is
-   begin
-      if This.Last_Op in Condition_Operator
-        and then Condition in C_Equal | C_Not_Equal
-      then
-         This.Branch
-           (Get_Branch
-              (To_Condition (This.Last_Op), Condition = C_Equal),
-            Destination);
-      else
-         This.Branch (Get_Branch (Condition, False),
-                      Label_Reference (Get_Label_Image (Destination)));
-      end if;
-      This.Last_Op := Op_Nop;
-   end Branch;
-
-   ------------
-   -- Branch --
-   ------------
-
-   procedure Branch
-     (This        : in out Instance'Class;
-      Instruction : Pdp11.ISA.Branch_Instruction;
-      Label       : Positive)
-   is
-   begin
-      This.Append
-        (Command'
-           (Has_Instruction => True,
-            Branch_Label    => Label,
-            Instruction     => Instruction,
-            others          => <>));
-   end Branch;
 
    ------------
    -- Branch --
@@ -353,6 +314,49 @@ package body Tagatha.Arch.Pdp11_Generator is
               Label_Reference (Get_Label_Image (Destination)),
             others          => <>));
    end Branch;
+
+   ------------
+   -- Branch --
+   ------------
+
+   overriding procedure Branch
+     (This        : in out Instance;
+      Condition   : Tagatha_Condition;
+      Destination : Tagatha.Labels.Label)
+   is
+   begin
+      if This.Last_Op in Condition_Operator
+        and then Condition in C_Equal | C_Not_Equal
+      then
+         This.Branch
+           (Get_Branch
+              (To_Condition (This.Last_Op), Condition = C_Equal),
+            Destination);
+      else
+         This.Branch_To_Label
+           (Get_Branch (Condition, False),
+            Get_Label_Image (Destination));
+      end if;
+      This.Last_Op := Op_Nop;
+   end Branch;
+
+   ---------------------
+   -- Branch_To_Label --
+   ---------------------
+
+   procedure Branch_To_Label
+     (This        : in out Instance'Class;
+      Instruction : Pdp11.ISA.Branch_Instruction;
+      Label       : String)
+   is
+   begin
+      This.Append
+        (Command'
+           (Has_Instruction => True,
+            Branch_Label    => Label_Reference (Label),
+            Instruction     => Instruction,
+            others          => <>));
+   end Branch_To_Label;
 
    ----------
    -- Call --
@@ -568,9 +572,7 @@ package body Tagatha.Arch.Pdp11_Generator is
                   Byte            => False,
                   Dst             => Dst,
                   Branch_Label    => 0,
-                  Instruction     => Pdp11.ISA.I_MOV,
-                  Src_Operand     => FP.Operand,
-                  Dst_Operand     => Dst.Operand));
+                  Instruction     => Pdp11.ISA.I_MOV));
             if Adjusted_Offset /= 0 then
                This.Commands.Append
                  (Command'
@@ -582,9 +584,7 @@ package body Tagatha.Arch.Pdp11_Generator is
                      Branch_Label    => 0,
                      Instruction     => (if Offset > 0
                                          then Pdp11.ISA.I_ADD
-                                         else Pdp11.ISA.I_SUB),
-                     Src_Operand     => Imm.Operand,
-                     Dst_Operand     => Dst.Operand));
+                                         else Pdp11.ISA.I_SUB)));
             end if;
          end;
       end if;
@@ -896,6 +896,18 @@ package body Tagatha.Arch.Pdp11_Generator is
       end if;
    end Move;
 
+   --------------------------
+   -- Next_Temporary_Label --
+   --------------------------
+
+   function Next_Temporary_Label return String is
+   begin
+      Next_Temporary_Index := Next_Temporary_Index + 1;
+      return Label : String := Next_Temporary_Index'Image do
+         Label (Label'First) := '_';
+      end return;
+   end Next_Temporary_Label;
+
    -------------
    -- Operate --
    -------------
@@ -943,6 +955,9 @@ package body Tagatha.Arch.Pdp11_Generator is
       AC1 : constant Command_Operand :=
               (Operand => (Register => 1, others => <>),
                others  => <>);
+      L1  : constant String := Next_Temporary_Label;
+      L2  : constant String := Next_Temporary_Label;
+
    begin
 --      Ada.Text_IO.Put_Line
 --        (Operands.Image (Destination)
@@ -988,9 +1003,9 @@ package body Tagatha.Arch.Pdp11_Generator is
                   procedure Compare (Src_1, Src_2 : Command_Operand) is
                   begin
                      This.Append (Pdp11.ISA.I_CMP, Src_1, Src_2);
-                     This.Branch (Br, Label_Reference ("1"));
+                     This.Branch_To_Label (Br, L1);
                      if Br /= I_BNE then
-                        This.Branch (I_BNE, Label_Reference ("2"));
+                        This.Branch_To_Label (I_BNE, L2);
                      end if;
                   end Compare;
 
@@ -1002,16 +1017,16 @@ package body Tagatha.Arch.Pdp11_Generator is
                        (I_LDF, AC1, Source_Operand (Source_2));
                      This.Append
                        (I_CMPF, AC0, AC1);
-                     This.Branch (Br, 1);
+                     This.Branch_To_Label (Br, L1);
                   else
                      Long_Operation (Source_1, Source_2, Instr_Bits, True,
                                      Compare'Access);
-                     This.Label (2);
+                     This.Label (L2);
                   end if;
                end;
 
                This.Append (I_INC, R0);
-               This.Label (1);
+               This.Label (L1);
                This.Append
                  (Instruction => I_MOV,
                   Src         => R0,
@@ -1201,27 +1216,28 @@ package body Tagatha.Arch.Pdp11_Generator is
 
          declare
             Keep : Boolean := True;
+            Src  : constant Operand_Type := Cmd.Src.Operand;
+            Dst  : constant Operand_Type := Cmd.Dst.Operand;
          begin
             if Cmd.Has_Instruction
-              and then Cmd.Dst_Operand.Mode = Register_Mode
-              and then Cmd.Dst_Operand.Deferred = False
+              and then Dst.Mode = Register_Mode
+              and then not Dst.Deferred
             then
                if Cmd.Instruction = I_MOV
-                 and then Cmd.Src_Operand.Mode = Register_Mode
-                 and then Cmd.Src_Operand.Deferred = False
+                 and then Src.Mode = Register_Mode
+                 and then not Src.Deferred
                then
-                  if State (Cmd.Dst_Operand.Register).Known
-                    and then State (Cmd.Dst_Operand.Register).Src
-                    = Cmd.Src_Operand.Register
+                  if State (Dst.Register).Known
+                    and then State (Dst.Register).Src
+                    = Src.Register
                   then
                      Changed := True;
                      Keep := False;
                   else
-                     State (Cmd.Dst_Operand.Register) :=
-                       (True, Cmd.Src_Operand.Register);
+                     State (Dst.Register) := (True, Src.Register);
                   end if;
                else
-                  State (Cmd.Dst_Operand.Register).Known := False;
+                  State (Dst.Register).Known := False;
                end if;
             end if;
 

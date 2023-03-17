@@ -55,8 +55,8 @@ private
                              Pdp11.ISA.I_CCC;
          Src, Dst        : Command_Operand;
          Branch_Label    : Natural := 0;
-         Src_Operand     : Pdp11.ISA.Operand_Type := (others => <>);
-         Dst_Operand     : Pdp11.ISA.Operand_Type := (others => <>);
+         --  Src_Operand     : Pdp11.ISA.Operand_Type := (others => <>);
+         --  Dst_Operand     : Pdp11.ISA.Operand_Type := (others => <>);
       end record;
 
    function To_Assembly (This : Command) return String;
