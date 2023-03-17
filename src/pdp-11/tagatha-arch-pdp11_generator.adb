@@ -1,12 +1,10 @@
 with Ada.Characters.Handling;
 with Ada.Containers.Doubly_Linked_Lists;
+with Ada.Containers.Indefinite_Holders;
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Strings.Fixed;
-with Ada.Strings.Unbounded;
 with Ada.Unchecked_Conversion;
 --  with Ada.Text_IO;
-
-with Tagatha.Arch.Pdp11_Generator.Images;
 
 with Pdp11.ISA;
 
@@ -23,6 +21,11 @@ package body Tagatha.Arch.Pdp11_Generator is
 
    Label_Vector : Label_Vectors.Vector;
    Label_Map    : Label_Maps.Map;
+
+   package Operand_Holders is
+     new Ada.Containers.Indefinite_Holders
+       (Tagatha.Operands.Operand_Type,
+        Tagatha.Operands."=");
 
    type Command_Operand is
       record
@@ -56,6 +59,7 @@ package body Tagatha.Arch.Pdp11_Generator is
          Result     : Command_Operand;
          Source     : Boolean;
          Word_Index : Natural;
+         Multiword  : Boolean := False;
       end record;
 
    overriding procedure Stack_Operand
@@ -82,6 +86,12 @@ package body Tagatha.Arch.Pdp11_Generator is
      (Process : in out Command_Operand_Process;
       Context : Operands.Operand_Context;
       Value   : Tagatha_Floating_Point);
+
+   overriding procedure Register_Operand
+     (Process    : in out Command_Operand_Process;
+      Context    : Tagatha.Operands.Operand_Context;
+      Group      : Tagatha.Registers.Register_Group'Class;
+      Register   : Tagatha.Registers.Register);
 
    function Get_Instruction
      (Op : Tagatha_Operator)
@@ -218,8 +228,8 @@ package body Tagatha.Arch.Pdp11_Generator is
    type Move_Operand is
      new Tagatha.Operands.Operand_Process_Interface with
       record
-         Dst  : Ada.Strings.Unbounded.Unbounded_String;
-         Line : Tagatha.Assembler.Assembler_Line;
+         Dst      : Operand_Holders.Holder;
+         Commands : Command_Lists.List;
       end record;
 
    overriding procedure Frame_Operand
@@ -493,10 +503,13 @@ package body Tagatha.Arch.Pdp11_Generator is
       Int_Value : constant Floating_Point_Integer :=
                     To_Integer (Value);
       Slice     : constant Floating_Point_Integer :=
-                    (Int_Value / 2 ** (16 * Process.Word_Index))
-                     mod 2 ** 16;
+                    (Int_Value / 2 ** (16 * Process.Word_Index)) mod 2 ** 16;
    begin
-      Process.Result := Immediate (Tagatha_Integer (Slice));
+      if Size_Bits (Context.Size) <= 16 then
+         Process.Result := Immediate (Tagatha_Integer (Slice));
+      else
+         Process.Result := Immediate (Tagatha_Integer (Int_Value));
+      end if;
    end Floating_Point_Operand;
 
    -------------------
@@ -530,7 +543,6 @@ package body Tagatha.Arch.Pdp11_Generator is
       Context : Tagatha.Operands.Operand_Context;
       Offset  : Frame_Offset)
    is
-      use Ada.Strings.Unbounded;
    begin
       if Context.Is_Address then
          declare
@@ -540,15 +552,35 @@ package body Tagatha.Arch.Pdp11_Generator is
                                 abs
                                   (Base_Offset
                                    + Frame_Offset (Context.Word_Index) * 2);
+            Dst             : constant Command_Operand :=
+                                Destination_Operand (This.Dst.Element);
+            Imm             : constant Command_Operand :=
+                                Immediate (Tagatha_Integer (Adjusted_Offset));
          begin
-            Assembler.Put
-              (This.Line, "mov", "r5", To_String (This.Dst));
-            Assembler.Put
-              (This.Line,
-               (if Offset > 0 then "add" else "sub"),
-               "#" & Ada.Strings.Fixed.Trim
-                 (Frame_Offset'Image (Adjusted_Offset), Ada.Strings.Left),
-               To_String (This.Dst));
+            This.Commands.Append
+              (Command'
+                 (Has_Instruction => True,
+                  Label_List      => <>,
+                  Src             => FP,
+                  Byte            => False,
+                  Dst             => Dst,
+                  Branch_Label    => 0,
+                  Instruction     => Pdp11.ISA.I_MOV,
+                  Src_Operand     => FP.Operand,
+                  Dst_Operand     => Dst.Operand));
+            This.Commands.Append
+              (Command'
+                 (Has_Instruction => True,
+                  Label_List      => <>,
+                  Src             => Imm,
+                  Byte            => False,
+                  Dst             => Dst,
+                  Branch_Label    => 0,
+                  Instruction     => (if Offset > 0
+                                      then Pdp11.ISA.I_ADD
+                                      else Pdp11.ISA.I_SUB),
+                  Src_Operand     => Imm.Operand,
+                  Dst_Operand     => Dst.Operand));
          end;
       end if;
    end Frame_Operand;
@@ -817,13 +849,10 @@ package body Tagatha.Arch.Pdp11_Generator is
                    This.Size_Bits (Operands.Size (Destination));
 --      Src_Image : constant String :=
 --                    Images.Source_Operand_Image.Image (Source);
-      Dst_Image : constant String :=
-                    Images.Destination_Operand_Image.Image (Destination);
       Before_Move : Move_Operand :=
                       Move_Operand'
-                        (Dst  => Ada.Strings.Unbounded.To_Unbounded_String
-                           (Dst_Image),
-                         Line => <>);
+                        (Dst      => Operand_Holders.To_Holder (Destination),
+                         Commands => <>);
    begin
       --  Ada.Text_IO.Put_Line
       --    (Operands.Image (Destination)
@@ -832,9 +861,11 @@ package body Tagatha.Arch.Pdp11_Generator is
 
       Before_Move.Process (Source);
 
-      This.Put (Before_Move.Line);
+      for Command of Before_Move.Commands loop
+         This.Commands.Append (Command);
+      end loop;
 
-      if Assembler.Is_Empty (Before_Move.Line) then
+      if Before_Move.Commands.Is_Empty then
          if Dst_Bits <= 16 then
             This.Append (Pdp11.ISA.I_MOV,
                          Source_Operand (Source),
@@ -1038,6 +1069,39 @@ package body Tagatha.Arch.Pdp11_Generator is
          end;
       end if;
    end Put;
+
+   ----------------------
+   -- Register_Operand --
+   ----------------------
+
+   overriding procedure Register_Operand
+     (Process    : in out Command_Operand_Process;
+      Context    : Tagatha.Operands.Operand_Context;
+      Group      : Tagatha.Registers.Register_Group'Class;
+      Register   : Tagatha.Registers.Register)
+   is
+      use Pdp11.ISA;
+      use type Tagatha.Registers.Register;
+      G : Register_Group'Class renames Register_Group'Class (Group);
+      R : constant Register_Index := Register_Index (G.First + Register);
+      Operand : Operand_Type;
+   begin
+      if not Context.Is_Initialized
+        or else not Context.Is_Address
+      then
+         Operand := Operand_Type'
+           (Register => R, others => <>);
+      elsif Process.Multiword then
+         Operand := Operand_Type'
+           (Register => R, Mode => Autoincrement_Mode, Deferred => False);
+      else
+         Operand := Operand_Type'
+           (Register => R, Mode => Register_Mode, Deferred => True);
+      end if;
+      Process.Result := Command_Operand'
+        (Operand => Operand, others => <>);
+
+   end Register_Operand;
 
    --------------------
    -- Source_Operand --
