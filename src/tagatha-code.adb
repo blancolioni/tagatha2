@@ -119,6 +119,9 @@ package body Tagatha.Code is
      (This           : in out Instance)
    is
    begin
+      if not This.Pending_Labels.Is_Empty then
+         This.Append (Reserve (0));
+      end if;
       This.Routines.Append (This.Active_Routine);
    end End_Routine;
 
