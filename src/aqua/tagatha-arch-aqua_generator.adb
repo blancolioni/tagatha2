@@ -210,6 +210,8 @@ package body Tagatha.Arch.Aqua_Generator is
                      & ", "
                      & R (Cmd.Y));
                when Condition_Operator =>
+                  This.Put ("CMP " & R (Cmd.X) & ", " & R (Cmd.Y)
+                            & ", " & R (Cmd.Z));
                   declare
                      Op : constant String :=
                             (case Condition_Operator (Cmd.Operator) is
@@ -223,7 +225,7 @@ package body Tagatha.Arch.Aqua_Generator is
                      This.Put (Op & " "
                                & R (Cmd.X)
                                & ", "
-                               & R (Cmd.Y)
+                               & R (Cmd.X)
                                & ", 1");
                   end;
 
