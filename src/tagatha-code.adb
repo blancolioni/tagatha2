@@ -304,6 +304,7 @@ package body Tagatha.Code is
       for Routine of This.Routines loop
          Arch.Start_Routine
            (Name   => Ada.Strings.Unbounded.To_String (Routine.Name),
+            Args   => Routine.Argument_Words,
             Global => Routine.Global);
 
          for Item of Routine.Vector loop

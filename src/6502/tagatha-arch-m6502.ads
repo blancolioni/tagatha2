@@ -68,6 +68,7 @@ private
    overriding procedure Start_Routine
      (This   : in out Instance;
       Name   : String;
+      Args   : Natural;
       Global : Boolean);
 
    overriding procedure End_Routine

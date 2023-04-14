@@ -91,6 +91,7 @@ package body Tagatha.Arch.Pdp11_Generator is
    overriding procedure Start_Routine
      (This   : in out Instance;
       Name   : String;
+      Args   : Natural;
       Global : Boolean);
 
    overriding procedure End_Routine
@@ -1289,6 +1290,7 @@ package body Tagatha.Arch.Pdp11_Generator is
    overriding procedure Start_Routine
      (This   : in out Instance;
       Name   : String;
+      Args   : Natural;
       Global : Boolean)
    is
    begin

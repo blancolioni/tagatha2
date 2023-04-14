@@ -590,6 +590,7 @@ package body Tagatha.Arch.M6502 is
    overriding procedure Start_Routine
      (This   : in out Instance;
       Name   : String;
+      Args   : Natural;
       Global : Boolean)
    is
    begin

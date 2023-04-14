@@ -76,6 +76,7 @@ package Tagatha.Arch is
    procedure Start_Routine
      (This   : in out Instance;
       Name   : String;
+      Args   : Natural;
       Global : Boolean)
    is abstract;
 
