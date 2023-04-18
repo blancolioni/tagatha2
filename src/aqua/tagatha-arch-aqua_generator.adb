@@ -1,7 +1,9 @@
 with Ada.Containers.Indefinite_Vectors;
 with Ada.Strings.Fixed;
+with Ada.Text_IO;
 with Ada.Unchecked_Conversion;
 
+with Tagatha.Arch.Aqua_Generator.Inspect;
 with Tagatha.Arch.Aqua_Generator.Operands;
 
 package body Tagatha.Arch.Aqua_Generator is
@@ -86,13 +88,6 @@ package body Tagatha.Arch.Aqua_Generator is
      (This  : in out Instance;
       Label : Tagatha.Labels.Label);
 
-   overriding procedure Put
-     (This        : in out Instance;
-      Instruction : String;
-      Arg_1       : String := "";
-      Arg_2       : String := "";
-      Arg_3       : String := "");
-
    overriding function Get_Group
      (This : Instance;
       Data : Tagatha_Data_Type;
@@ -115,26 +110,23 @@ package body Tagatha.Arch.Aqua_Generator is
      (This : in out Instance'Class;
       Cmd  : Command);
 
-   --  procedure Branch
-   --    (This        : in out Instance'Class;
-   --     Condition   : Tagatha_Condition;
-   --     Negated     : Boolean;
-   --     Destination : Tagatha.Labels.Label);
-
    procedure Branch_To_Label
      (This        : in out Instance'Class;
       Condition   : Tagatha_Condition;
       Negated     : Boolean;
       Destination : String);
 
-   --  function Branch_Control
-   --    (Condition   : Tagatha_Condition;
-   --     Negated     : Boolean)
-   --     return Aqua.Instruction.Control_Record;
-
    function Label_Reference
      (Name : String)
       return Positive;
+
+   procedure Peephole
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean);
+
+   procedure Register_State
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean);
 
    ------------
    -- Append --
@@ -171,6 +163,9 @@ package body Tagatha.Arch.Aqua_Generator is
       Cmd  : Command)
    is
 
+      function R (X : Natural) return String
+      is ("%" & Ada.Strings.Fixed.Trim (X'Image, Ada.Strings.Both));
+
       function R (X : Command_Operand) return String
       is ((if X.Imm then "" else "%")
           & Ada.Strings.Fixed.Trim (X.R'Image, Ada.Strings.Both));
@@ -190,7 +185,7 @@ package body Tagatha.Arch.Aqua_Generator is
          when G_Return =>
             This.Put
               ("PUT rJ, "
-               & R ((Aqua.Word_8 (This.Context.Return_Address), False)));
+               & R (This.Context.Return_Address));
 
             This.Put
               ("POP" & Cmd.X.R'Image & ", 0");
@@ -198,7 +193,7 @@ package body Tagatha.Arch.Aqua_Generator is
          when G_Begin =>
             This.Put
               ("GET "
-               & R ((Aqua.Word_8 (This.Context.Return_Address), False))
+               & R (This.Context.Return_Address)
                & ", rJ");
 
          when G_Operate =>
@@ -212,6 +207,7 @@ package body Tagatha.Arch.Aqua_Generator is
                when Condition_Operator =>
                   This.Put ("CMP " & R (Cmd.X) & ", " & R (Cmd.Y)
                             & ", " & R (Cmd.Z));
+
                   declare
                      Op : constant String :=
                             (case Condition_Operator (Cmd.Operator) is
@@ -228,19 +224,23 @@ package body Tagatha.Arch.Aqua_Generator is
                                & R (Cmd.X)
                                & ", 1");
                   end;
-
                when Op_Test =>
                   null;
 
                when others =>
-                  declare
-                     Op_Img : constant String :=
-                                Cmd.Operator'Image;
-                  begin
-                     This.Put
-                       (Op_Img (4 .. Op_Img'Last)
-                        & " " & Rs);
-                  end;
+                  if Cmd.X.R < 256 and then Cmd.Y.R < 256 then
+                     declare
+                        Op_Img : constant String :=
+                                   Cmd.Operator'Image;
+                     begin
+                        This.Put
+                          (Op_Img (4 .. Op_Img'Last)
+                           & " " & Rs);
+                     end;
+                  else
+                     Ada.Text_IO.Put_Line ("unhandled: " & Cmd'Image);
+                  end if;
+
             end case;
 
          when G_Branch =>
@@ -328,8 +328,8 @@ package body Tagatha.Arch.Aqua_Generator is
    is
       Cmd : Command := Command'
         (General => G_Call,
-         X       =>
-           (Aqua.Word_8 (This.Context.Stack - Argument_Count - 1), False),
+         X       => (This.Context.Stack - Argument_Count - 1,
+                     False, False),
          Save_J  => This.Context.Return_Address,
          others  => <>);
    begin
@@ -357,16 +357,14 @@ package body Tagatha.Arch.Aqua_Generator is
    overriding procedure End_Generation
      (This   : in out Instance)
    is
-      --  Changed : Boolean := True;
+      Changed : Boolean := True;
    begin
-      --  if True then
-      --     while Changed loop
-      --        Peephole (This.Commands, Changed);
-      --        if not Changed then
-      --           Register_State (This.Commands, Changed);
-      --        end if;
-      --     end loop;
-      --  end if;
+      while Changed loop
+         Peephole (This.Commands, Changed);
+         if not Changed then
+            Register_State (This.Commands, Changed);
+         end if;
+      end loop;
 
       for Command of This.Commands loop
          --  Ada.Text_IO.Put_Line (Command'Image);
@@ -387,7 +385,7 @@ package body Tagatha.Arch.Aqua_Generator is
       This.Append
         (Command'
            (General         => G_Return,
-            X               => (0, False),
+            X               => (0, False, False),
             Save_J          => This.Context.Return_Address,
             others          => <>));
    end End_Routine;
@@ -521,6 +519,20 @@ package body Tagatha.Arch.Aqua_Generator is
       Cmd                    : Command;
       Load_X, Load_Y, Load_Z : Command_Lists.List;
       Store_X                : Command_Lists.List;
+
+      procedure Report (List : Command_Lists.List);
+
+      ------------
+      -- Report --
+      ------------
+
+      procedure Report (List : Command_Lists.List) is
+      begin
+         for Cmd of List loop
+            Ada.Text_IO.Put_Line (Cmd'Image);
+         end loop;
+      end Report;
+
    begin
       Cmd.X := This.T1;
       Cmd.Y := This.T2;
@@ -530,6 +542,12 @@ package body Tagatha.Arch.Aqua_Generator is
       Operands.Load_Z (Source_2, This.Context, Load_Y, Cmd.Z);
       Operands.Prepare_X (Destination, This.Context, Load_X, Cmd.X);
 
+      if False then
+         Report (Load_Y);
+         Report (Load_Z);
+         Report (Load_X);
+      end if;
+
       This.Append (Load_Y);
       This.Append (Load_Z);
       This.Append (Load_X);
@@ -538,32 +556,80 @@ package body Tagatha.Arch.Aqua_Generator is
       Cmd.Operator := Operator;
       This.Append (Cmd);
 
+      --  Ada.Text_IO.Put_Line (Cmd'Image);
+
       Operands.Store_X (Destination, This.Context, Store_X, Cmd.X);
       This.Append (Store_X);
+
+      Report (Store_X);
+
    end Operate;
 
-   ---------
-   -- Put --
-   ---------
+   --------------
+   -- Peephole --
+   --------------
 
-   overriding procedure Put
-     (This        : in out Instance;
-      Instruction : String;
-      Arg_1       : String := "";
-      Arg_2       : String := "";
-      Arg_3       : String := "")
+   procedure Peephole
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean)
    is
+      Previous : Command := (others => <>);
+      Position : Command_Lists.Cursor := Commands.First;
+      State    : Inspect.Machine_State;
    begin
-      if Instruction = "mov" and then Arg_1 = "#0" then
-         Parent (This).Put ("clr", Arg_2);
-      elsif Instruction = "add" and then Arg_1 = "#0" then
-         null;
-      elsif Instruction = "sub" and then Arg_1 = "#0" then
-         null;
-      else
-         Parent (This).Put (Instruction, Arg_1, Arg_2, Arg_3);
+      Changed := False;
+      while Command_Lists.Has_Element (Position) loop
+         declare
+            Cmd         : constant Command := Command_Lists.Element (Position);
+            New_Command : Command;
+            Can_Update  : constant Boolean :=
+                            Cmd.Label_List.Is_Empty
+                                and then Previous.General not in
+                                  G_Branch | G_Call | G_Begin | G_Return;
+            Updated     : Boolean := False;
+         begin
+            if Can_Update then
+               Inspect.Check_Sequence (Previous, Cmd, New_Command, Updated);
+            end if;
+
+            --  if not Updated then
+            --     Inspect.Save (State, Commands, Position, Updated);
+            --  end if;
+
+            if Updated then
+               Changed := True;
+               declare
+                  Deleted : Command_Lists.Cursor := Position;
+               begin
+                  Command_Lists.Previous (Position);
+                  Commands.Delete (Deleted);
+                  Commands (Position) := New_Command;
+               end;
+               Previous := New_Command;
+            else
+               Previous := Cmd;
+            end if;
+         end;
+         Command_Lists.Next (Position);
+      end loop;
+
+      if Changed then
+         return;
       end if;
-   end Put;
+
+      Position := Commands.First;
+
+      while Command_Lists.Has_Element (Position) loop
+         declare
+            Updated     : Boolean := False;
+         begin
+            Inspect.Save (State, Commands, Position, Updated);
+            Changed := Changed or else Updated;
+         end;
+         Command_Lists.Next (Position);
+      end loop;
+
+   end Peephole;
 
    ---------
    -- Put --
@@ -580,6 +646,19 @@ package body Tagatha.Arch.Aqua_Generator is
 
       This.Assemble (Cmd);
    end Put;
+
+   --------------------
+   -- Register_State --
+   --------------------
+
+   procedure Register_State
+     (Commands : in out Command_Lists.List;
+      Changed  : out Boolean)
+   is
+      pragma Unreferenced (Commands);
+   begin
+      Changed := False;
+   end Register_State;
 
    -------------------
    -- Start_Routine --
@@ -600,9 +679,12 @@ package body Tagatha.Arch.Aqua_Generator is
            First_Temporary => Args + 1, Temporary_Count => 3,
            First_Stack     => Args + 4, Stack => Args + 4,
            To_Integer      => Label_Reference'Access);
-      This.T1 := (Aqua.Word_8 (This.Context.First_Temporary), False);
-      This.T2 := (Aqua.Word_8 (This.Context.First_Temporary + 1), False);
-      This.T3 := (Aqua.Word_8 (This.Context.First_Temporary + 2), False);
+      This.T1 := (This.Context.First_Temporary,
+                  False, False);
+      This.T2 := (This.Context.First_Temporary + 1,
+                  False, False);
+      This.T3 := (This.Context.First_Temporary + 2,
+                  False, False);
       This.Append (Command'(General => G_Begin, others => <>));
    end Start_Routine;
 

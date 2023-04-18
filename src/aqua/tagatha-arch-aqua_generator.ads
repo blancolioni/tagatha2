@@ -1,5 +1,4 @@
 private with Ada.Containers.Doubly_Linked_Lists;
-private with Aqua;
 
 private package Tagatha.Arch.Aqua_Generator is
 
@@ -34,8 +33,9 @@ private
 
    type Command_Operand is
       record
-         R   : Aqua.Word_8 := 0;
+         R   : Natural := 0;
          Imm : Boolean := False;
+         Def : Boolean := False;
       end record;
 
    type General_Command is

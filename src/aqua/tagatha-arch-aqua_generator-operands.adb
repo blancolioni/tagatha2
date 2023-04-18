@@ -31,6 +31,12 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
       Context : Tagatha.Operands.Operand_Context;
       Offset  : Frame_Offset);
 
+   overriding procedure Register_Operand
+     (Process   : in out Operand_Processor;
+      Context   : Tagatha.Operands.Operand_Context;
+      Group     : Tagatha.Registers.Register_Group'Class;
+      Register  : Tagatha.Registers.Register);
+
    overriding procedure Stack_Operand
      (Process : in out Operand_Processor;
       Context : Tagatha.Operands.Operand_Context);
@@ -65,13 +71,11 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
       Context : Tagatha.Operands.Operand_Context;
       Offset  : Frame_Offset)
    is
-      R : constant Aqua.Word_8 :=
+      R : constant Natural :=
             (if Offset < 0
-             then Aqua.Word_8
-               (Process.Context.First_Stack - 1 - Integer (Offset))
-             else Aqua.Word_8
-               (Process.Context.First_Argument
-                + Natural (Offset) - 1));
+             then Process.Context.First_Stack - 1 - Integer (Offset)
+             else Process.Context.First_Argument
+             + Natural (Offset) - 1);
    begin
       case Process.Target is
          when Jump_Destination =>
@@ -79,7 +83,11 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
          when Store_X =>
             null;
          when Prepare_X | Load_Y | Load_Z =>
-            Process.Op := (R, False);
+            if Context.Is_Address then
+               Process.Op := (R - Context.Word_Index, False, True);
+            else
+               Process.Op := (R, False, Context.Is_Address);
+            end if;
       end case;
    end Frame_Operand;
 
@@ -121,7 +129,7 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
             end if;
          when Load_Z =>
             if Value <= 255 then
-               Process.Op := (Aqua.Word_8 (Value), True);
+               Process.Op := (Natural (Value), True, False);
             elsif Value <= 65535 then
                Process.Commands.Append
                  (Command'(General => G_Set, Clear_Other => True,
@@ -216,6 +224,37 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
       X    := This.Op;
    end Prepare_X;
 
+   ----------------------
+   -- Register_Operand --
+   ----------------------
+
+   overriding procedure Register_Operand
+     (Process   : in out Operand_Processor;
+      Context   : Tagatha.Operands.Operand_Context;
+      Group     : Tagatha.Registers.Register_Group'Class;
+      Register  : Tagatha.Registers.Register)
+   is
+   begin
+      case Process.Target is
+         when Jump_Destination =>
+            null;
+         when Prepare_X =>
+            Process.Op :=
+              (Natural (Register) - Context.Word_Index,
+               False, Context.Is_Address);
+         when Store_X =>
+            null;
+         when Load_Y =>
+            Process.Op :=
+              (Natural (Register) - Context.Word_Index,
+               False, Context.Is_Address);
+         when Load_Z =>
+            Process.Op :=
+              (Natural (Register) - Context.Word_Index,
+               False, Context.Is_Address);
+      end case;
+   end Register_Operand;
+
    --------------------------
    -- Set_Jump_Destination --
    --------------------------
@@ -248,7 +287,7 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
             null;
          when Prepare_X =>
             Process.Op :=
-              (Aqua.Word_8 (Process.Context.Stack), False);
+              (Process.Context.Stack, False, False);
             Process.Context.Stack := @ + 1;
 
          when Store_X =>
@@ -256,7 +295,7 @@ package body Tagatha.Arch.Aqua_Generator.Operands is
 
          when Load_Y | Load_Z =>
             Process.Context.Stack := @ - 1;
-            Process.Op := (Aqua.Word_8 (Process.Context.Stack), False);
+            Process.Op := (Process.Context.Stack, False, False);
 
       end case;
    end Stack_Operand;
