@@ -7,7 +7,9 @@ package body Tagatha.Operands.Images is
        & Data_Image (Context.Data)
        & (if Context.Size /= Default_Size
          then "/" & Size_Image (Context.Size)
-         else ""));
+         else "")
+       & (if Context.Word_Index /= 0
+         then " +" & Context.Word_Index'Image else ""));
 
    type Standard_Image_Type is
      new Tagatha.Operands.Operand_Image_Interface with null record;

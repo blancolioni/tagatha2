@@ -258,6 +258,7 @@ package body Tagatha.Code is
                                Group    => Group,
                                Register => R);
                begin
+
                   Arch.Operate
                     (Operator    => From.Transfer.Operator,
                      Source_1    => From.Transfer.Src_1.Element,
@@ -454,6 +455,23 @@ package body Tagatha.Code is
    begin
       return Img;
    end Image;
+
+   -----------
+   -- Index --
+   -----------
+
+   procedure Index
+     (This        : in out Instance;
+      Word_Offset : Natural)
+   is
+      Rec : Instruction_Record renames
+              This.Active_Routine.Vector
+                (This.Active_Routine.Vector.Last_Index);
+   begin
+      pragma Assert (Rec.T = Push);
+      Rec.Operand.Replace_Element
+        (Tagatha.Operands.Index_Operand (Rec.Operand.Element, Word_Offset));
+   end Index;
 
    -----------
    -- Label --

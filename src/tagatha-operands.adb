@@ -8,8 +8,7 @@ package body Tagatha.Operands is
 
    function Image
      (This       : Operand_Image_Interface'Class;
-      Operand    : Operand_Type;
-      Word_Index : Natural)
+      Operand    : Operand_Type)
       return String
    is
       Context : constant Operand_Context := Operand_Context'
@@ -19,7 +18,8 @@ package body Tagatha.Operands is
          Is_Initialized =>
            Operand.Class /= Register_Operand
          or else Operand.Initialized,
-         Word_Index => Word_Index);
+         Is_Indexed => Operand.Is_Indexed,
+         Word_Index => Operand.Word_Index);
    begin
       case Operand.Class is
          when No_Operand =>
@@ -47,6 +47,21 @@ package body Tagatha.Operands is
       end case;
    end Image;
 
+   -------------------
+   -- Index_Operand --
+   -------------------
+
+   function Index_Operand
+     (Op    : Operand_Type;
+      Index : Natural)
+      return Operand_Type
+   is
+   begin
+      return Result : Operand_Type := Op do
+         Result.Word_Index := Index;
+      end return;
+   end Index_Operand;
+
    -------------
    -- Process --
    -------------
@@ -56,13 +71,14 @@ package body Tagatha.Operands is
       Operand : Operand_Type)
    is
       Context : constant Operand_Context := Operand_Context'
-        (Data       => Operand.Data,
-         Size       => Operand.Size,
-         Is_Address => Operand.Is_Address,
+        (Data           => Operand.Data,
+         Size           => Operand.Size,
+         Is_Address     => Operand.Is_Address,
          Is_Initialized =>
            Operand.Class /= Register_Operand
          or else Operand.Initialized,
-         Word_Index     => 0);
+         Is_Indexed     => Operand.Is_Indexed,
+         Word_Index     => Operand.Word_Index);
    begin
       case Operand.Class is
          when No_Operand =>

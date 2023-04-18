@@ -109,12 +109,18 @@ package Tagatha.Operands is
      (Value : Tagatha_Floating_Point)
       return Operand_Type;
 
+   function Index_Operand
+     (Op    : Operand_Type;
+      Index : Natural)
+      return Operand_Type;
+
    type Operand_Context is
       record
          Data           : Tagatha_Data_Type := Untyped_Data;
          Size           : Tagatha_Size := Default_Size;
          Is_Address     : Boolean := False;
          Is_Initialized : Boolean := False;
+         Is_Indexed     : Boolean := False;
          Word_Index     : Natural := 0;
       end record;
 
@@ -218,14 +224,8 @@ package Tagatha.Operands is
       is abstract;
 
    function Image
-     (This    : Operand_Image_Interface'Class;
-      Operand : Operand_Type)
-      return String;
-
-   function Image
      (This        : Operand_Image_Interface'Class;
-      Operand     : Operand_Type;
-      Word_Index  : Natural)
+      Operand     : Operand_Type)
       return String;
 
    function Standard_Image return Operand_Image_Interface'Class;
@@ -265,6 +265,8 @@ private
          Size         : Tagatha_Size := Default_Size;
          Is_Address   : Boolean := False;
          Is_Reference : Boolean := False;
+         Is_Indexed   : Boolean := False;
+         Word_Index   : Natural := 0;
          case Class is
             when No_Operand =>
                null;
@@ -399,7 +401,8 @@ private
           Data         => Src.Data,
           Size         => Src.Size,
           Is_Address   => False,
-          Is_Reference => False));
+          Is_Reference => False,
+          others       => <>));
 
    function Register_Assignment_Operand
      (Operand  : Operand_Type;
@@ -414,6 +417,8 @@ private
                            else Operand.Size),
           Is_Address   => Operand.Is_Address,
           Is_Reference => False,
+          Is_Indexed   => False,
+          Word_Index   => 0,
           Group        => Register_Group_Holders.To_Holder (Group),
           Register     => Register,
           Initialized  => False));
@@ -429,17 +434,13 @@ private
           Size         => Operand.Size,
           Is_Address   => Operand.Is_Address,
           Is_Reference => False,
+          Is_Indexed   => False,
+          Word_Index   => 0,
           Group        => Register_Group_Holders.To_Holder (Group),
           Register     => Register,
           Initialized  => True));
 
    Default_Operand_Context : constant Operand_Context := (others => <>);
-
-   function Image
-     (This    : Operand_Image_Interface'Class;
-      Operand : Operand_Type)
-      return String
-   is (This.Image (Operand, Word_Index => 0));
 
    function Image (Operand : Operand_Type) return String
    is (Standard_Image.Image (Operand));

@@ -35,6 +35,10 @@ package Tagatha.Code is
       Operator : Tagatha_Operator;
       Result   : Operands.Operand_Type := Operands.No_Operand);
 
+   procedure Index
+     (This        : in out Instance;
+      Word_Offset : Natural);
+
    procedure Store
      (This    : in out Instance);
 
@@ -87,7 +91,7 @@ private
 
    type Instruction_Record (T : Instruction_Type) is
       record
-         Labels : Local_Label_Lists.List;
+         Labels      : Local_Label_Lists.List;
          case T is
             when Push =>
                Operand           : Operand_Holders.Holder;
