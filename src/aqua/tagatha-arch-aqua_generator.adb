@@ -124,6 +124,9 @@ package body Tagatha.Arch.Aqua_Generator is
      (Commands : in out Command_Lists.List;
       Changed  : out Boolean);
 
+   procedure Move_Registers
+     (Commands : in out Command_Lists.List);
+
    procedure Register_State
      (Commands : in out Command_Lists.List;
       Changed  : out Boolean);
@@ -366,8 +369,11 @@ package body Tagatha.Arch.Aqua_Generator is
          end if;
       end loop;
 
+      if True then
+         Move_Registers (This.Commands);
+      end if;
+
       for Command of This.Commands loop
-         --  Ada.Text_IO.Put_Line (Command'Image);
          This.Put (Command);
       end loop;
 
@@ -493,17 +499,87 @@ package body Tagatha.Arch.Aqua_Generator is
       This.Append (Store_X);
    end Move;
 
-   --------------------------
-   -- Next_Temporary_Label --
-   --------------------------
+   --------------------
+   -- Move_Registers --
+   --------------------
 
-   --  function Next_Temporary_Label return String is
-   --  begin
-   --     Next_Temporary_Index := Next_Temporary_Index + 1;
-   --     return Label : String := Next_Temporary_Index'Image do
-   --        Label (Label'First) := '_';
-   --     end return;
-   --  end Next_Temporary_Label;
+   procedure Move_Registers
+     (Commands : in out Command_Lists.List)
+   is
+
+      type Reg_Record is
+         record
+            Map_To : Natural;
+            Used   : Boolean;
+         end record;
+
+      Rs : array (0 .. 255) of Reg_Record;
+
+      procedure Check
+        (Op  : Command_Operand);
+
+      procedure Update
+        (Op  : in out Command_Operand);
+
+      -----------
+      -- Check --
+      -----------
+
+      procedure Check
+        (Op  : Command_Operand)
+      is
+      begin
+         if not Op.Imm then
+            Rs (Op.R).Used := True;
+         end if;
+      end Check;
+
+      ------------
+      -- Update --
+      ------------
+
+      procedure Update
+        (Op  : in out Command_Operand)
+      is
+      begin
+         if not Op.Imm then
+            Op.R := Rs (Op.R).Map_To;
+         end if;
+      end Update;
+
+   begin
+      for R in Rs'Range loop
+         Rs (R) := (R, False);
+      end loop;
+
+      for Cmd of Commands loop
+         Check (Cmd.X);
+         Check (Cmd.Y);
+         Check (Cmd.Z);
+      end loop;
+
+      declare
+         Next : Natural := 0;
+      begin
+         for Rec of Rs loop
+            if Rec.Used then
+               if False then
+                  Ada.Text_IO.Put_Line
+                    ("map:" & Rec.Map_To'Image & " ->" & Next'Image);
+               end if;
+               Rec.Map_To := Next;
+               Next := Next + 1;
+            end if;
+         end loop;
+      end;
+
+      for Cmd of Commands loop
+         Update (Cmd.X);
+         Update (Cmd.Y);
+         Update (Cmd.Z);
+      end loop;
+
+   end Move_Registers;
 
    -------------
    -- Operate --
